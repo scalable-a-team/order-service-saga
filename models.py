@@ -1,6 +1,6 @@
 import uuid as uuid
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import Integer, Column, String, Numeric, DateTime, func, event
+from sqlalchemy import Integer, Column, String, Numeric, DateTime, func, event, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -18,12 +18,17 @@ class Order(Base):
     updated_at = Column(DateTime(timezone=True), default=func.now())
 
 
-class EventHistory(Base):
-    __tablename__ = 'event_history'
+class ProcessedEvent(Base):
+    __tablename__ = 'processed_event'
     event_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     chain_id = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True)
-    event = Column(String)
+    event = Column(String(32))
+    next_event = Column(String(32))
     step = Column(Integer)
+
+    __table_args__ = (
+        UniqueConstraint('chain_id', 'event', name='chain_event_uc'),
+    )
 
 
 def update_time_modifier(mapper, connection, target):
