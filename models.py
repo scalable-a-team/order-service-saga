@@ -10,18 +10,18 @@ class Order(Base):
     __tablename__ = 'order_order'
     uuid = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     status = Column(String)
-    seller_id = Column(Integer)
+    seller_id = Column(Integer, nullable=True)
     buyer_id = Column(Integer)
     product_id = Column(Integer)
-    total_incl_tax = Column(Numeric(precision=2))
+    total_incl_tax = Column(Numeric(precision=2), nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), default=func.now())
 
 
 class EventHistory(Base):
-    __tablename__ = 'order_order'
+    __tablename__ = 'event_history'
     event_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    chain_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chain_id = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True)
     event = Column(String)
     step = Column(Integer)
 
