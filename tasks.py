@@ -59,7 +59,8 @@ logger = get_task_logger(__name__)
 
 @app.task(name=EventStatus.CREATE_ORDER, bind=True)
 def create_order(self, buyer_id, product_id, order_id):
-    self.update_state(state='STARTED')
+    with tracer.start_span(name="update task to STARTED status"):
+        self.update_state(state='STARTED')
     logger.info(f"Receive Buyer ID: {buyer_id}, Product ID: {product_id}, Order ID: {order_id}")
     db_session = Session()
 
@@ -73,12 +74,13 @@ def create_order(self, buyer_id, product_id, order_id):
     # If event is already processed, we skip the event processing
     # but fire the next event just in-case the next-published message is lost
     if event_record is not None:
-        app.send_task(
-            event_record.next_event,
-            kwargs=payload,
-            queue=EventStatus.get_queue(event_record.next_event),
-        )
-        return payload
+        with tracer.start_span(name=f"send_task {event_record.next_event}"):
+            app.send_task(
+                event_record.next_event,
+                kwargs=payload,
+                queue=EventStatus.get_queue(event_record.next_event),
+            )
+            return payload
 
     order = Order(
         uuid=order_id,
@@ -96,16 +98,17 @@ def create_order(self, buyer_id, product_id, order_id):
 
     transaction_success = False
 
-    try:
-        with db_session.begin():
-            db_session.add_all([order, history])
-        transaction_success = True
-    except Exception as e:
-        logger.error(e)
-        logger.info(f"{EventStatus.CREATE_ORDER} failed for Buyer ID: {buyer_id} Product ID: {product_id}")
+    with tracer.start_span(name="Execute DB Transaction"):
+        try:
+            with db_session.begin():
+                db_session.add_all([order, history])
+            transaction_success = True
+        except Exception as e:
+            logger.error(e)
+            logger.info(f"{EventStatus.CREATE_ORDER} failed for Buyer ID: {buyer_id} Product ID: {product_id}")
     # Since this is the origin of SAGA, no need to revert event when transaction failed
     if transaction_success:
-        with tracer.start_span(name="send_task") as send_task_span:
+        with tracer.start_span(name=f"send_task {EventStatus.UPDATE_PRODUCT_QUOTA}"):
             app.send_task(
                 EventStatus.UPDATE_PRODUCT_QUOTA,
                 kwargs=payload,
