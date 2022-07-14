@@ -33,8 +33,10 @@ except:
     pass
 
 
+tracer = None
 @worker_process_init.connect(weak=False)
 def init_celery_tracing(*args, **kwargs):
+    global tracer
     resource = Resource.create(attributes={
         "service.name": "OrderSagaWorker"
     })
@@ -47,6 +49,7 @@ def init_celery_tracing(*args, **kwargs):
         engine=engine,
     )
     CeleryInstrumentor().instrument()
+    tracer = trace.get_tracer(__name__)
 
 
 app = Celery()
@@ -102,11 +105,12 @@ def create_order(self, buyer_id, product_id, order_id):
         logger.info(f"{EventStatus.CREATE_ORDER} failed for Buyer ID: {buyer_id} Product ID: {product_id}")
     # Since this is the origin of SAGA, no need to revert event when transaction failed
     if transaction_success:
-        app.send_task(
-            EventStatus.UPDATE_PRODUCT_QUOTA,
-            kwargs=payload,
-            queue=EventStatus.get_queue(EventStatus.UPDATE_PRODUCT_QUOTA),
-        )
+        with tracer.start_span(name="send_task") as send_task_span:
+            app.send_task(
+                EventStatus.UPDATE_PRODUCT_QUOTA,
+                kwargs=payload,
+                queue=EventStatus.get_queue(EventStatus.UPDATE_PRODUCT_QUOTA),
+            )
     return payload
 
 
