@@ -4,6 +4,7 @@ from celery import Celery
 from celery.signals import worker_process_init
 from celery.utils.log import get_task_logger
 from opentelemetry.instrumentation.celery import CeleryInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, and_
 
@@ -18,6 +19,9 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 engine = create_engine(
     f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}',
     echo=True
+)
+SQLAlchemyInstrumentor().instrument(
+    engine=engine,
 )
 Session = sessionmaker(bind=engine)
 

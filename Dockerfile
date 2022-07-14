@@ -23,4 +23,4 @@ ENV PATH="/.venv/bin:$PATH"
 WORKDIR /code
 COPY . .
 
-ENTRYPOINT ["opentelemetry-instrument", "celery"]
+ENTRYPOINT ["celery"]
