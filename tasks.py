@@ -3,8 +3,13 @@ import os
 from celery import Celery
 from celery.signals import worker_process_init
 from celery.utils.log import get_task_logger
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.celery import CeleryInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace import TracerProvider
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, and_
 
@@ -30,6 +35,14 @@ except:
 
 @worker_process_init.connect(weak=False)
 def init_celery_tracing(*args, **kwargs):
+    resource = Resource(attributes={
+        "service.name": "OrderSagaWorker"
+    })
+    trace.set_tracer_provider(TracerProvider(resource))
+    span_processor = BatchSpanProcessor(
+        OTLPSpanExporter(endpoint=os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT'), insecure=True)
+    )
+    trace.get_tracer_provider().add_span_processor(span_processor)
     SQLAlchemyInstrumentor().instrument(
         engine=engine,
     )
