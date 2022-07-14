@@ -3,7 +3,7 @@ import os
 from celery import Celery
 from celery.signals import worker_process_init
 from celery.utils.log import get_task_logger
-from opentelemetry import trace, propagators
+from opentelemetry import trace, propagate
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.celery import CeleryInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
@@ -33,11 +33,12 @@ except:
     pass
 
 tracer = None
-
+PROPAGATOR = None
 
 @worker_process_init.connect(weak=False)
 def init_celery_tracing(*args, **kwargs):
     global tracer
+    global PROPAGATOR
     resource = Resource.create(attributes={
         "service.name": "OrderSagaWorker"
     })
@@ -51,6 +52,7 @@ def init_celery_tracing(*args, **kwargs):
     )
     CeleryInstrumentor().instrument()
     tracer = trace.get_tracer(__name__)
+    PROPAGATOR = propagate.get_global_textmap()
 
 
 app = Celery()
@@ -60,7 +62,7 @@ logger = get_task_logger(__name__)
 
 @app.task(name=EventStatus.CREATE_ORDER, bind=True)
 def create_order(self, buyer_id, product_id, order_id, context_payload):
-    ctx = propagators.extract(_header_from_carrier, context_payload)
+    ctx = PROPAGATOR.extract(carrier=context_payload, getter=_header_from_carrier)
     with tracer.start_as_current_span("SAGA create_order", context=ctx):
         with tracer.start_span(name="update task to STARTED status"):
             self.update_state(state='STARTED')
