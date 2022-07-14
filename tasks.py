@@ -62,7 +62,7 @@ logger = get_task_logger(__name__)
 
 @app.task(name=EventStatus.CREATE_ORDER, bind=True)
 def create_order(self, buyer_id, product_id, order_id, context_payload):
-    ctx = PROPAGATOR.extract(carrier=context_payload, getter=_header_from_carrier)
+    ctx = PROPAGATOR.extract(carrier=context_payload)
     with tracer.start_as_current_span("SAGA create_order", context=ctx):
         with tracer.start_span(name="update task to STARTED status"):
             self.update_state(state='STARTED')
