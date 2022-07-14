@@ -8,7 +8,20 @@ celery = "*"
 sqlalchemy = "*"
 uuid = "*"
 psycopg2-binary = "*"
-
+protobuf = "<=3.19"
+opentelemetry-instrumentation = "0.32b0"
+opentelemetry-distro = {version = "0.32b0", extras = ["otlp"]}
+opentelemetry-instrumentation-aws-lambda = "0.32b0"
+opentelemetry-instrumentation-dbapi = "0.32b0"
+opentelemetry-instrumentation-logging = "0.32b0"
+opentelemetry-instrumentation-sqlite3 = "0.32b0"
+opentelemetry-instrumentation-urllib = "0.32b0"
+opentelemetry-instrumentation-wsgi = "0.32b0"
+opentelemetry-instrumentation-celery = "0.32b0"
+opentelemetry-instrumentation-grpc = "0.32b0"
+opentelemetry-instrumentation-requests = "0.32b0"
+opentelemetry-instrumentation-sqlalchemy = "0.32b0"
+opentelemetry-instrumentation-urllib3 = "0.32b0"
 [dev-packages]
 
 [requires]

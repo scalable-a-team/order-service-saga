@@ -1,7 +1,9 @@
 import os
 
 from celery import Celery
+from celery.signals import worker_process_init
 from celery.utils.log import get_task_logger
+from opentelemetry.instrumentation.celery import CeleryInstrumentor
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, and_
 
@@ -23,6 +25,12 @@ try:
     ProcessedEvent.__table__.create(engine)
 except:
     pass
+
+
+@worker_process_init.connect(weak=False)
+def init_celery_tracing(*args, **kwargs):
+    CeleryInstrumentor().instrument()
+
 
 app = Celery()
 app.config_from_object(celeryconfig)
