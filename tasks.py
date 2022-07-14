@@ -20,9 +20,6 @@ engine = create_engine(
     f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}',
     echo=True
 )
-SQLAlchemyInstrumentor().instrument(
-    engine=engine,
-)
 Session = sessionmaker(bind=engine)
 
 try:
@@ -33,6 +30,9 @@ except:
 
 @worker_process_init.connect(weak=False)
 def init_celery_tracing(*args, **kwargs):
+    SQLAlchemyInstrumentor().instrument(
+        engine=engine,
+    )
     CeleryInstrumentor().instrument()
 
 
