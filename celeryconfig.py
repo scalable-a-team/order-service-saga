@@ -8,4 +8,5 @@ task_acks_on_failure_or_timeout = False
 
 task_routes = {
     'tasks.create_order': {'queue': 'order'},
+    'tasks.revert_create_order': {'queue': 'order'}
 }
