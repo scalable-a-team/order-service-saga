@@ -111,7 +111,7 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
             except Exception as e:
                 logger.error(e)
                 logger.info(f"{current_event} failed for Buyer ID: {buyer_id} Product ID: {product_id}")
-                raise e
+
         # Since this is the origin of SAGA, no need to revert event when transaction failed
         if transaction_success:
             payload['seller_id'] = '933717f4-e083-4b10-9dc0-f884b026473a'
