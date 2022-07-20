@@ -21,7 +21,7 @@ class Order(Base):
 class ProcessedEvent(Base):
     __tablename__ = 'processed_event'
     event_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    chain_id = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True)
+    chain_id = Column(UUID(as_uuid=True), default=uuid.uuid4)
     event = Column(String(32))
     next_event = Column(String(32), nullable=True)
     step = Column(Integer)
