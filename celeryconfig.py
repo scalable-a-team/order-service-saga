@@ -6,6 +6,7 @@ result_backend = os.getenv('CELERY_RESULT_BACKEND')
 task_acks_late = True
 task_acks_on_failure_or_timeout = False
 task_reject_on_worker_lost = True
+task_serializer = 'pickle'
 
 task_routes = {
     'tasks.create_order': {'queue': 'order'},
