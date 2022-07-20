@@ -191,6 +191,105 @@ def revert_create_order(self, buyer_id, product_id, order_id, seller_id, product
             raise e
 
 
+@app.task(name=EventStatus.UPDATE_ORDER_SUCCESS, bind=True)
+def update_order_success(self, order_id, product_amount):
+    self.update_state(state='STARTED')
+    current_event = EventStatus.UPDATE_ORDER_SUCCESS
+    db_session = Session()
+
+    event_record = db_session.query(ProcessedEvent).filter(and_(
+        ProcessedEvent.chain_id == order_id,
+        ProcessedEvent.event == current_event,
+    )).first()
+    db_session.commit()
+
+    payload = {'order_id': order_id, 'product_amount': product_amount}
+    if event_record is not None:
+        logger.info(f"Receive duplicate event. chain_id {order_id}, event: {current_event}")
+        with tracer.start_span(name=f"send_task {event_record.next_event}"):
+            app.send_task(
+                event_record.next_event,
+                kwargs=payload,
+                queue=EventStatus.get_queue(event_record.next_event),
+            )
+            return payload
+        return
+
+    next_event = EventStatus.TRANSFER_TO_SELLER_BALANCE
+    with tracer.start_span(name="Execute DB Transaction"):
+        try:
+            with db_session.begin():
+                db_session.query(Order).filter(Order.uuid == order_id).update({'status': OrderStatus.SUCCESS})
+                history = ProcessedEvent(
+                    chain_id=order_id,
+                    event_id=self.request.id,
+                    event=current_event,
+                    next_event=next_event,
+                    step=0
+                )
+                db_session.add(history)
+        except Exception as e:
+            logger.error(e)
+            logger.info(f"{current_event} failed for Order ID: {order_id}")
+            raise e
+
+    with tracer.start_span(name=f"send_task {next_event}"):
+        app.send_task(
+            next_event,
+            kwargs=payload,
+            queue=EventStatus.get_queue(next_event),
+        )
+
+
+@app.task(name=EventStatus.UPDATE_ORDER_REJECTED, bind=True)
+def update_order_rejected(self, order_id, product_amount):
+    self.update_state(state='STARTED')
+    current_event = EventStatus.UPDATE_ORDER_REJECTED
+    db_session = Session()
+
+    event_record = db_session.query(ProcessedEvent).filter(and_(
+        ProcessedEvent.chain_id == order_id,
+        ProcessedEvent.event == current_event,
+    )).first()
+    db_session.commit()
+
+    payload = {'order_id': order_id, 'product_amount': product_amount}
+    if event_record is not None:
+        logger.info(f"Receive duplicate event. chain_id {order_id}, event: {current_event}")
+        with tracer.start_span(name=f"send_task {event_record.next_event}"):
+            app.send_task(
+                event_record.next_event,
+                kwargs=payload,
+                queue=EventStatus.get_queue(event_record.next_event),
+            )
+            return payload
+
+    next_event = EventStatus.REFUND_BUYER
+    with tracer.start_span(name="Execute DB Transaction"):
+        try:
+            with db_session.begin():
+                db_session.query(Order).filter(Order.uuid == order_id).update({'status': OrderStatus.REJECTED})
+                history = ProcessedEvent(
+                    chain_id=order_id,
+                    event_id=self.request.id,
+                    event=current_event,
+                    next_event=next_event,
+                    step=0
+                )
+                db_session.add(history)
+        except Exception as e:
+            logger.error(e)
+            logger.info(f"{current_event} failed for Order ID: {order_id}")
+            raise e
+
+    with tracer.start_span(name=f"send_task {next_event}"):
+        app.send_task(
+            next_event,
+            kwargs=payload,
+            queue=EventStatus.get_queue(next_event),
+        )
+
+
 def _header_from_carrier(carrier, key):
     header = carrier.get(key)
     return [header] if header else []
