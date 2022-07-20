@@ -192,7 +192,7 @@ def revert_create_order(self, buyer_id, product_id, order_id, seller_id, product
 
 
 @app.task(name=EventStatus.UPDATE_ORDER_SUCCESS, bind=True)
-def update_order_success(self, order_id, product_amount):
+def update_order_success(self, order_id, seller_id, product_amount):
     self.update_state(state='STARTED')
     current_event = EventStatus.UPDATE_ORDER_SUCCESS
     db_session = Session()
@@ -203,7 +203,7 @@ def update_order_success(self, order_id, product_amount):
     )).first()
     db_session.commit()
 
-    payload = {'order_id': order_id, 'product_amount': product_amount}
+    payload = {'order_id': order_id, 'product_amount': product_amount, 'seller_id': seller_id}
     if event_record is not None:
         logger.info(f"Receive duplicate event. chain_id {order_id}, event: {current_event}")
         with tracer.start_span(name=f"send_task {event_record.next_event}"):
@@ -242,7 +242,7 @@ def update_order_success(self, order_id, product_amount):
 
 
 @app.task(name=EventStatus.UPDATE_ORDER_REJECTED, bind=True)
-def update_order_rejected(self, order_id, product_amount):
+def update_order_rejected(self, order_id, buyer_id, product_amount):
     self.update_state(state='STARTED')
     current_event = EventStatus.UPDATE_ORDER_REJECTED
     db_session = Session()
@@ -253,7 +253,7 @@ def update_order_rejected(self, order_id, product_amount):
     )).first()
     db_session.commit()
 
-    payload = {'order_id': order_id, 'product_amount': product_amount}
+    payload = {'order_id': order_id, 'product_amount': product_amount, 'buyer_id': buyer_id}
     if event_record is not None:
         logger.info(f"Receive duplicate event. chain_id {order_id}, event: {current_event}")
         with tracer.start_span(name=f"send_task {event_record.next_event}"):
