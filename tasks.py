@@ -77,7 +77,7 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
         )).first()
         db_session.commit()
 
-        payload = {'order_id': order_id, 'product_id': product_id, 'buyer_id': buyer_id, 'step': 0}
+        payload = {'order_id': order_id, 'product_id': product_id, 'buyer_id': buyer_id}
         # If event is already processed, we skip the event processing
         # but fire the next event just in-case the next-published message is lost
         if event_record is not None:
