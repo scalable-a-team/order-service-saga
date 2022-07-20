@@ -10,8 +10,8 @@ class Order(Base):
     __tablename__ = 'order_order'
     uuid = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     status = Column(String)
-    seller_id = Column(Integer, nullable=True)
-    buyer_id = Column(Integer)
+    seller_id = Column(UUID(as_uuid=True), nullable=True)
+    buyer_id = Column(UUID(as_uuid=True))
     product_id = Column(Integer)
     total_incl_tax = Column(Numeric(precision=12, scale=2), nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
