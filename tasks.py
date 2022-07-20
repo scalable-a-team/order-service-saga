@@ -35,6 +35,7 @@ except:
 tracer = None
 PROPAGATOR = None
 
+
 @worker_process_init.connect(weak=False)
 def init_celery_tracing(*args, **kwargs):
     global tracer
@@ -127,6 +128,38 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
         return payload
 
 
+@app.task(name=EventStatus.APPROVE_ORDER_PENDING, bind=True)
+def approve_order_pending(self, buyer_id, product_id, order_id, seller_id, product_amount):
+    self.update_state(state='STARTED')
+    current_event = EventStatus.APPROVE_ORDER_PENDING
+    db_session = Session()
+
+    event_record = db_session.query(ProcessedEvent).filter(and_(
+        ProcessedEvent.chain_id == order_id,
+        ProcessedEvent.event == current_event,
+    )).first()
+    db_session.commit()
+
+    if event_record is not None:
+        logger.info(f"Receive duplicate event. chain_id {order_id}, event: {current_event}")
+        return
+
+    with db_session.begin():
+        order = db_session.query(Order).filter(Order.uuid == order_id).first()
+        order.status = OrderStatus.PENDING
+        order.total_incl_tax = product_amount
+        order.seller_id = seller_id
+        db_session.flush()
+        history = ProcessedEvent(
+            chain_id=order_id,
+            event_id=self.request.id,
+            event=current_event,
+            next_event=None,
+            step=0
+        )
+        db_session.add(history)
+
+
 @app.task(name=EventStatus.REVERT_CREATE_ORDER, bind=True)
 def revert_create_order(self, buyer_id, product_id, order_id, seller_id, product_amount):
     self.update_state(state='STARTED')
@@ -135,7 +168,7 @@ def revert_create_order(self, buyer_id, product_id, order_id, seller_id, product
 
     event_record = db_session.query(ProcessedEvent).filter(and_(
         ProcessedEvent.chain_id == order_id,
-        ProcessedEvent.event == EventStatus.REVERT_CREATE_ORDER,
+        ProcessedEvent.event == current_event,
     )).first()
     db_session.commit()
 
