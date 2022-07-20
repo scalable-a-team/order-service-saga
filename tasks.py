@@ -27,10 +27,7 @@ engine = create_engine(
 )
 Session = sessionmaker(bind=engine)
 
-try:
-    ProcessedEvent.__table__.create(engine)
-except:
-    pass
+ProcessedEvent.__table__.create(engine, checkfirst=True)
 
 tracer = None
 PROPAGATOR = None
