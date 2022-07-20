@@ -1,5 +1,6 @@
 import os
 
+import requests
 from celery import Celery
 from celery.signals import worker_process_init
 from celery.utils.log import get_task_logger
@@ -57,7 +58,7 @@ logger = get_task_logger(__name__)
 
 
 @app.task(name=EventStatus.CREATE_ORDER, bind=True)
-def create_order(self, buyer_id, product_id, order_id, context_payload):
+def create_order(self, buyer_id, product_id, order_id, seller_id, product_amount, context_payload):
     ctx = PROPAGATOR.extract(carrier=context_payload)
     current_event = EventStatus.CREATE_ORDER
     next_event = EventStatus.RESERVE_BUYER_CREDIT
@@ -74,7 +75,8 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
         )).first()
         db_session.commit()
 
-        payload = {'order_id': order_id, 'product_id': product_id, 'buyer_id': buyer_id}
+        payload = {'order_id': order_id, 'product_id': product_id, 'buyer_id': buyer_id,
+                   'seller_id': seller_id, 'product_amount': product_amount}
         # If event is already processed, we skip the event processing
         # but fire the next event just in-case the next-published message is lost
         if event_record is not None:
@@ -114,8 +116,6 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
 
         # Since this is the origin of SAGA, no need to revert event when transaction failed
         if transaction_success:
-            payload['seller_id'] = '933717f4-e083-4b10-9dc0-f884b026473a'
-            payload['product_amount'] = '23.39'
             with tracer.start_span(name=f"send_task {next_event}"):
                 app.send_task(
                     next_event,
