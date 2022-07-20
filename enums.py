@@ -14,9 +14,11 @@ class EventStatus:
     CREATE_ORDER = 'create_order'
     REVERT_CREATE_ORDER = 'revert_create_order'
     UPDATE_PRODUCT_QUOTA = 'update_product_quota'
+    RESERVE_BUYER_CREDIT = 'reserve_buyer_wallet'
 
     _queue_mapping = {
-        UPDATE_PRODUCT_QUOTA: 'product'
+        UPDATE_PRODUCT_QUOTA: 'product',
+        RESERVE_BUYER_CREDIT: 'user'
     }
 
     @classmethod

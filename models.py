@@ -13,7 +13,7 @@ class Order(Base):
     seller_id = Column(Integer, nullable=True)
     buyer_id = Column(Integer)
     product_id = Column(Integer)
-    total_incl_tax = Column(Numeric(precision=2), nullable=True)
+    total_incl_tax = Column(Numeric(precision=12, scale=2), nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), default=func.now())
 
@@ -23,7 +23,7 @@ class ProcessedEvent(Base):
     event_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     chain_id = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True)
     event = Column(String(32))
-    next_event = Column(String(32))
+    next_event = Column(String(32), nullable=True)
     step = Column(Integer)
 
     __table_args__ = (

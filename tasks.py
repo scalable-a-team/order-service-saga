@@ -47,9 +47,7 @@ def init_celery_tracing(*args, **kwargs):
         OTLPSpanExporter(endpoint=os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT'), insecure=True)
     )
     trace.get_tracer_provider().add_span_processor(span_processor)
-    SQLAlchemyInstrumentor().instrument(
-        engine=engine,
-    )
+    SQLAlchemyInstrumentor().instrument(engine=engine)
     CeleryInstrumentor().instrument()
     tracer = trace.get_tracer(__name__)
     PROPAGATOR = propagate.get_global_textmap()
@@ -63,6 +61,9 @@ logger = get_task_logger(__name__)
 @app.task(name=EventStatus.CREATE_ORDER, bind=True)
 def create_order(self, buyer_id, product_id, order_id, context_payload):
     ctx = PROPAGATOR.extract(carrier=context_payload)
+    current_event = EventStatus.CREATE_ORDER
+    next_event = EventStatus.RESERVE_BUYER_CREDIT
+
     with tracer.start_as_current_span("SAGA create_order", context=ctx):
         with tracer.start_span(name="update task to STARTED status"):
             self.update_state(state='STARTED')
@@ -71,7 +72,7 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
 
         event_record = db_session.query(ProcessedEvent).filter(and_(
             ProcessedEvent.chain_id == order_id,
-            ProcessedEvent.event == EventStatus.CREATE_ORDER,
+            ProcessedEvent.event == current_event,
         )).first()
         db_session.commit()
 
@@ -79,6 +80,7 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
         # If event is already processed, we skip the event processing
         # but fire the next event just in-case the next-published message is lost
         if event_record is not None:
+            logger.info(f"Receive duplicate event. chain_id {order_id}, event: {current_event}")
             with tracer.start_span(name=f"send_task {event_record.next_event}"):
                 app.send_task(
                     event_record.next_event,
@@ -96,8 +98,8 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
         history = ProcessedEvent(
             chain_id=order_id,
             event_id=self.request.id,
-            event=EventStatus.CREATE_ORDER,
-            next_event=EventStatus.UPDATE_PRODUCT_QUOTA,
+            event=current_event,
+            next_event=next_event,
             step=0
         )
 
@@ -110,23 +112,53 @@ def create_order(self, buyer_id, product_id, order_id, context_payload):
                 transaction_success = True
             except Exception as e:
                 logger.error(e)
-                logger.info(f"{EventStatus.CREATE_ORDER} failed for Buyer ID: {buyer_id} Product ID: {product_id}")
+                logger.info(f"{current_event} failed for Buyer ID: {buyer_id} Product ID: {product_id}")
+                raise e
         # Since this is the origin of SAGA, no need to revert event when transaction failed
         if transaction_success:
-            with tracer.start_span(name=f"send_task {EventStatus.UPDATE_PRODUCT_QUOTA}"):
+            payload['seller_id'] = '933717f4-e083-4b10-9dc0-f884b026473a'
+            payload['product_amount'] = '23.39'
+            with tracer.start_span(name=f"send_task {next_event}"):
                 app.send_task(
-                    EventStatus.UPDATE_PRODUCT_QUOTA,
+                    next_event,
                     kwargs=payload,
-                    queue=EventStatus.get_queue(EventStatus.UPDATE_PRODUCT_QUOTA),
+                    queue=EventStatus.get_queue(next_event),
                 )
         return payload
 
 
 @app.task(name=EventStatus.REVERT_CREATE_ORDER, bind=True)
-def revert_create_order(self, order_uuid):
-    # TODO: Work on remove order
+def revert_create_order(self, buyer_id, product_id, order_id, seller_id, product_amount):
     self.update_state(state='STARTED')
-    return True
+    current_event = EventStatus.REVERT_CREATE_ORDER
+    db_session = Session()
+
+    event_record = db_session.query(ProcessedEvent).filter(and_(
+        ProcessedEvent.chain_id == order_id,
+        ProcessedEvent.event == EventStatus.REVERT_CREATE_ORDER,
+    )).first()
+    db_session.commit()
+
+    if event_record is not None:
+        logger.info(f"Receive duplicate event. chain_id {order_id}, event: {current_event}")
+        return
+
+    with tracer.start_span(name="Execute DB Transaction"):
+        try:
+            with db_session.begin():
+                db_session.query(Order).filter(Order.uuid == order_id).delete()
+                history = ProcessedEvent(
+                    chain_id=order_id,
+                    event_id=self.request.id,
+                    event=current_event,
+                    next_event=None,
+                    step=0
+                )
+                db_session.add(history)
+        except Exception as e:
+            logger.error(e)
+            logger.info(f"{current_event} failed for Buyer ID: {buyer_id} Product ID: {product_id}")
+            raise e
 
 
 def _header_from_carrier(carrier, key):
