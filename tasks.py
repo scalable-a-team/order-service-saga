@@ -57,7 +57,8 @@ logger = get_task_logger(__name__)
 
 
 @app.task(name=EventStatus.CREATE_ORDER, bind=True)
-def create_order(self, buyer_id, product_id, order_id, seller_id, product_amount, context_payload):
+def create_order(self, buyer_id, product_id, order_id, seller_id, product_amount, context_payload, job_description,
+                 dimension):
     ctx = PROPAGATOR.extract(carrier=context_payload)
     current_event = EventStatus.CREATE_ORDER
     next_event = EventStatus.RESERVE_BUYER_CREDIT
@@ -93,6 +94,8 @@ def create_order(self, buyer_id, product_id, order_id, seller_id, product_amount
             status=OrderStatus.INIT,
             buyer_id=buyer_id,
             product_id=product_id,
+            dimension_text=dimension,
+            description_text=job_description
         )
         history = ProcessedEvent(
             chain_id=order_id,

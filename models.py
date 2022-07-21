@@ -16,6 +16,8 @@ class Order(Base):
     total_incl_tax = Column(Numeric(precision=12, scale=2), nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
     updated_at = Column(DateTime(timezone=True), default=func.now())
+    dimension_text = Column(String)
+    description_text = Column(String)
 
 
 class ProcessedEvent(Base):
