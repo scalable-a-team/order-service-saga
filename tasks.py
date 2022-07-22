@@ -228,7 +228,11 @@ def update_order_success(self, order_id, seller_id, product_amount, buyer_id, co
     with tracer.start_span(name="Execute DB Transaction"):
         try:
             with db_session.begin():
-                db_session.query(Order).filter(Order.uuid == order_id).update({'status': OrderStatus.SUCCESS})
+                order = db_session.query(Order).with_for_update().filter_by(Order.uuid == order_id).first()
+                if order.status != OrderStatus.PENDING:
+                    raise Exception("Invalid order status in SAGA")
+                order.status = OrderStatus.SUCCESS
+                db_session.flush()
                 history = ProcessedEvent(
                     chain_id=order_id,
                     event_id=self.request.id,
@@ -281,7 +285,11 @@ def update_order_rejected(self, order_id, buyer_id, product_amount, seller_id, c
     with tracer.start_span(name="Execute DB Transaction"):
         try:
             with db_session.begin():
-                db_session.query(Order).filter(Order.uuid == order_id).update({'status': OrderStatus.REJECTED})
+                order = db_session.query(Order).with_for_update().filter_by(Order.uuid == order_id).first()
+                if order.status != OrderStatus.PENDING:
+                    raise Exception("Invalid order status in SAGA")
+                order.status = OrderStatus.REJECTED
+                db_session.flush()
                 history = ProcessedEvent(
                     chain_id=order_id,
                     event_id=self.request.id,
